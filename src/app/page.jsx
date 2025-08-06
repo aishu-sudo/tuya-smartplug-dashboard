@@ -17,51 +17,37 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 export default function Home() {
     const [data, setData] = useState(null);
-    const [history, setHistory] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [livePowerData, setLivePowerData] = useState([]);
     const [error, setError] = useState(null);
     const [isOn, setIsOn] = useState(true);
-    const [speed, setSpeed] = useState(100); // 0-100%
+    const [speed, setSpeed] = useState(100);
 
-    // Fetch real-time data
+    // Fetch real-time power data every 5s
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchStatus = async () => {
             try {
                 const res = await fetch('/api/status');
                 const json = await res.json();
-
                 if (json.success) {
                     setData(json.data);
+                    setLivePowerData(prev => [
+                        ...prev.slice(-29), // keep 30 points max
+                        {
+                            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                            value: json.data.cur_power,
+                        }
+                    ]);
                 } else {
-                    setError(json.error || 'Failed to fetch');
+                    setError('Status error');
                 }
             } catch (err) {
                 setError(err.message);
-            } finally {
-                setLoading(false);
             }
         };
 
-        fetchData();
-        const interval = setInterval(fetchData, 5000);
+        fetchStatus();
+        const interval = setInterval(fetchStatus, 5000);
         return () => clearInterval(interval);
-    }, []);
-
-    // Fetch historical data
-    useEffect(() => {
-        const fetchHistory = async () => {
-            try {
-                const res = await fetch('/api/history');
-                const json = await res.json();
-                if (json.success) {
-                    setHistory(json.data);
-                }
-            } catch (err) {
-                console.error('History fetch error:', err);
-            }
-        };
-
-        fetchHistory();
     }, []);
 
     const toggleDevice = async () => {
@@ -72,9 +58,7 @@ export default function Home() {
                 headers: { 'Content-Type': 'application/json' },
             });
             const json = await res.json();
-            if (json.success) {
-                setIsOn(!isOn);
-            }
+            if (json.success) setIsOn(json.state);
         } catch (err) {
             console.error('Toggle failed:', err);
         }
@@ -89,20 +73,17 @@ export default function Home() {
                 headers: { 'Content-Type': 'application/json' },
             });
         } catch (err) {
-            console.error('Speed change failed:', err);
+            console.error('Speed update failed:', err);
         }
     };
 
-    const formatVoltage = (raw) => (raw / 10).toFixed(1); // 2323 => 232.3 V
-    const energyCostPerKWh = 12; // BDT per kWh (adjust as needed)
-
     const chartData = {
-        labels: history.map((item) => item.date),
+        labels: livePowerData.map((p) => p.time),
         datasets: [
             {
-                label: 'Energy (kWh)',
-                data: history.map((item) => item.kwh),
-                borderColor: 'blue',
+                label: 'Live Power (W)',
+                data: livePowerData.map((p) => p.value),
+                borderColor: 'green',
                 fill: false,
             },
         ],
@@ -112,7 +93,6 @@ export default function Home() {
         <div style={{ fontFamily: 'Arial', padding: 20 }}>
             <h1>🔌 Tuya Smart Plug Dashboard</h1>
 
-            {loading && <p>Loading...</p>}
             {error && <p style={{ color: 'red' }}>❌ {error}</p>}
 
             {data && (
@@ -120,15 +100,15 @@ export default function Home() {
                     <ul>
                         <li><strong>Power:</strong> {data.cur_power} W</li>
                         <li><strong>Current:</strong> {data.cur_current} mA</li>
-                        <li><strong>Voltage:</strong> {formatVoltage(data.cur_voltage)} V</li>
+                        <li><strong>Voltage:</strong> {(data.cur_voltage / 10).toFixed(1)} V</li>
                     </ul>
 
-                    <button onClick={toggleDevice}>
+                    <button onClick={toggleDevice} style={{ marginTop: 10 }}>
                         {isOn ? 'Turn OFF' : 'Turn ON'}
                     </button>
 
                     <div style={{ marginTop: 20 }}>
-                        <label><strong>Speed Control: </strong>{speed}%</label>
+                        <label><strong>Speed Control:</strong> {speed}%</label>
                         <input
                             type="range"
                             min="0"
@@ -140,29 +120,7 @@ export default function Home() {
                     </div>
 
                     <div style={{ marginTop: 40 }}>
-                        <h3>📅 Daily Energy Usage</h3>
-                        <table border="1" cellPadding="5">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Energy (kWh)</th>
-                                    <th>Cost (৳)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {history.map((item) => (
-                                    <tr key={item.date}>
-                                        <td>{item.date}</td>
-                                        <td>{item.kwh.toFixed(2)}</td>
-                                        <td>{(item.kwh * energyCostPerKWh).toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div style={{ marginTop: 40 }}>
-                        <h3>📈 Energy Usage Trend</h3>
+                        <h3>📈 Real-Time Power Usage</h3>
                         <Line data={chartData} />
                     </div>
                 </>
