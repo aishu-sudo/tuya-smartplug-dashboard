@@ -1,5 +1,6 @@
 // pages/api/status.js
 const { TuyaContext } = require('@tuya/tuya-connector-nodejs');
+import clientPromise from '@/lib/mongodb';
 require('dotenv').config();
 
 const {
