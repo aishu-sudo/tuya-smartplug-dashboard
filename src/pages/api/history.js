@@ -1,6 +1,11 @@
+// pages/api/history.js
 import clientPromise from '@/lib/mongodb';
 
-export async function GET() {
+export default async function handler(req, res) {
+    if (req.method !== 'GET') {
+        return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    }
+
     try {
         const client = await clientPromise;
         const db = client.db("tuya-dashboard");
@@ -9,16 +14,19 @@ export async function GET() {
             .collection("power_logs")
             .find({})
             .sort({ timestamp: -1 })
-            .limit(20)
+            .limit(10)
             .toArray();
 
-        const dailyData = recent.map((item) => ({
-            date: item.timestamp.toISOString().split("T")[0],
-            kwh: item.cur_power / 1000,
+        const formatted = recent.map((item) => ({
+            timestamp: item.timestamp,
+            Power: item.cur_power,
+            Voltage: item.cur_voltage,
+            Current: item.cur_current
         }));
 
-        return Response.json({ success: true, data: dailyData.reverse() });
+        res.status(200).json({ success: true, data: formatted.reverse() });
     } catch (error) {
-        return Response.json({ success: false, error: error.message });
+        console.error('Database error:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 }

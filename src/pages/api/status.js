@@ -46,9 +46,11 @@ export default async function handler(req, res) {
         });
 
         const result = {};
-        for (const dp of response.result) {
-            const label = dpMap[dp.code] || dp.code;
-            result[label] = dp.value;
+        if (response.result) {
+            for (const dp of response.result) {
+                const label = dpMap[dp.code] || dp.code;
+                result[label] = dp.value;
+            }
         }
 
         res.status(200).json({ success: true, data: result });
